@@ -1,117 +1,145 @@
 import streamlit as st
 from pymongo import MongoClient
+from bson.objectid import ObjectId  # <-- Nuevo: Necesario para buscar y borrar botes exactos
 
-# --- CONFIGURACIÓN DE ESTÉTICA VERDE Y BLANCA ---
+# --- ESTÉTICA BONITA Y LIMPIA (Letras negras, detalles verdes) ---
 st.markdown("""
     <style>
-    /* Fondo de la aplicación blanco */
+    /* Letras negras y fondo claro/limpio */
     .stApp {
-        background-color: #FFFFFF;
+        background-color: #FAFAFA;
     }
-    /* Títulos y textos principales en verde oscuro */
-    h1, h2, h3, p, span, label, .stMarkdown {
-        color: #007A33 !important; 
+    h1, h2, h3, p, span, label {
+        color: #111111 !important; 
     }
-    /* Estilo de los botones (Fondo verde, texto blanco) */
+    /* Estilo de los botones (Verde elegante y bordes redondeados) */
     .stButton>button {
         background-color: #007A33;
         color: #FFFFFF !important;
-        border: 1px solid #007A33;
+        border: none;
+        border-radius: 8px;
+        transition: 0.3s;
     }
-    /* Color de la barra de progreso en verde */
+    .stButton>button:hover {
+        background-color: #005c26;
+    }
+    /* Barra de progreso verde */
     .stProgress > div > div > div > div {
         background-color: #007A33;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- BASE DE DATOS ---
+# --- CONEXIÓN A BASE DE DATOS ---
 try:
     url_via_secrets = st.secrets["MONGODB_URL"]
     client = MongoClient(url_via_secrets)
     db = client['almacen_tifos']
     coleccion = db['pinturas']
 except Exception as e:
-    st.error(f"Error de conexion: {e}")
+    st.error(f"Error de conexión: {e}")
 
 # --- DICCIONARIO DE COLORES EUROTEX ---
-# Aquí es donde relacionamos el código de la tienda con el color real.
-# Deberás añadir aquí los códigos exactos que soléis comprar.
 eurotex_colors = {
     "BLANCO": "#FFFFFF",
     "NEGRO": "#000000",
     "VERDE ANDALUCIA": "#007A33",
     "VERDE OSCURO": "#004d1a",
-    # Añade tus códigos de Eurotex así: "CODIGO_EUROTEX": "#Hexadecimal",
 }
 
 def obtener_color_hex(codigo):
-    # Limpiamos el texto y lo ponemos en mayúsculas para evitar errores al teclear
     codigo_limpio = str(codigo).strip().upper()
-    # Si encuentra el código, devuelve el color. Si no, devuelve un gris por defecto.
     return eurotex_colors.get(codigo_limpio, "#CCCCCC")
 
-# --- INTERFAZ DE USUARIO ---
-st.title("Inventario de Pinturas")
+# --- CABECERA ---
+st.title("🎨 Almacén de Tifos")
 
-with st.form("nuevo_bote"):
-    st.subheader("Añadir nuevo bote")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        nombre = st.text_input("Nombre de la pintura")
-        codigo = st.text_input("Codigo Eurotex")
-    with col2:
-        mezclada = st.checkbox("Mezclada con agua")
-        # El selector de color manual ha desaparecido
+# --- FORMULARIO PARA AÑADIR ---
+with st.expander("➕ Añadir nueva pintura al stock", expanded=False):
+    with st.form("nuevo_bote", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            nombre = st.text_input("Nombre de la pintura")
+            codigo = st.text_input("Código Eurotex")
+        with col2:
+            mezclada = st.checkbox("¿Mezclada con agua?")
+            porcentaje = st.slider("Cantidad restante (%)", 0, 100, 100, step=5)
         
-    porcentaje = st.slider("Cantidad restante (%)", min_value=0, max_value=100, value=100, step=5)
-    
-    enviar = st.form_submit_button("Guardar Pintura")
-
-    if enviar and nombre and codigo:
-        # Aquí el programa busca automáticamente el color basado en el código
-        color_hex = obtener_color_hex(codigo)
-        
-        nuevo_bote = {
-            "nombre": nombre,
-            "codigo": codigo,
-            "color_hex": color_hex,
-            "mezclada": mezclada,
-            "porcentaje": porcentaje
-        }
-        coleccion.insert_one(nuevo_bote)
-        st.success(f"Pintura guardada correctamente.")
+        if st.form_submit_button("Guardar en Inventario"):
+            if nombre and codigo:
+                color_hex = obtener_color_hex(codigo)
+                coleccion.insert_one({
+                    "nombre": nombre,
+                    "codigo": codigo,
+                    "color_hex": color_hex,
+                    "mezclada": mezclada,
+                    "porcentaje": porcentaje
+                })
+                st.success("¡Añadido al almacén!")
+                st.rerun() # Recarga la página para que aparezca al instante
+            else:
+                st.warning("Ponle nombre y código, churra.")
 
 st.markdown("---")
-st.subheader("Stock Actual")
+st.subheader("📦 Stock Actual")
 datos = list(coleccion.find())
 
+# --- LISTA DE STOCK CON OPCIONES DE EDITAR Y BORRAR ---
 if datos:
     for item in datos:
+        # Fila principal con la información
         col_color, col_info, col_estado = st.columns([1, 3, 2])
         
         with col_color:
             color = item.get('color_hex', '#CCCCCC')
-            # Círculo de color dinámico
             st.markdown(
-                f"<div style='width: 50px; height: 50px; background-color: {color}; border-radius: 50%; border: 2px solid #007A33; margin-top: 10px;'></div>", 
+                f"<div style='width: 45px; height: 45px; background-color: {color}; border-radius: 50%; border: 2px solid #ccc; margin-top: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'></div>", 
                 unsafe_allow_html=True
             )
             
         with col_info:
             st.markdown(f"**{item.get('nombre', 'Sin nombre')}**")
-            st.caption(f"Codigo Eurotex: {item.get('codigo', 'N/A')}")
-            if item.get('mezclada'):
-                st.caption("Mezclada con agua")
-            else:
-                st.caption("Pura")
+            st.caption(f"Ref: {item.get('codigo', 'N/A')} | {'💧 Mezclada' if item.get('mezclada') else '🔥 Pura'}")
                 
         with col_estado:
             porcentaje_actual = item.get('porcentaje', 0)
             st.write(f"Queda: **{porcentaje_actual}%**")
             st.progress(porcentaje_actual / 100.0)
             
-        st.markdown("---")
+        # Panel desplegable para EDITAR y BORRAR (usando el ID único del bote)
+        with st.expander(f"⚙️ Opciones de '{item.get('nombre')}'"):
+            tab_editar, tab_borrar = st.tabs(["✏️ Editar", "🗑️ Borrar"])
+            
+            # Pestaña Editar
+            with tab_editar:
+                with st.form(key=f"edit_form_{item['_id']}"):
+                    new_nom = st.text_input("Nombre", value=item.get("nombre"))
+                    new_cod = st.text_input("Código Eurotex", value=item.get("codigo"))
+                    new_mezcla = st.checkbox("Mezclada con agua", value=item.get("mezclada"))
+                    new_porc = st.slider("Porcentaje", 0, 100, item.get("porcentaje"), step=5, key=f"sld_{item['_id']}")
+                    
+                    if st.form_submit_button("Guardar Cambios"):
+                        nuevo_color = obtener_color_hex(new_cod)
+                        coleccion.update_one(
+                            {"_id": ObjectId(item["_id"])},
+                            {"$set": {
+                                "nombre": new_nom, 
+                                "codigo": new_cod, 
+                                "color_hex": nuevo_color,
+                                "mezclada": new_mezcla, 
+                                "porcentaje": new_porc
+                            }}
+                        )
+                        st.rerun() # Actualiza la pantalla en tiempo real
+            
+            # Pestaña Borrar
+            with tab_borrar:
+                st.warning("⚠️ ¿Seguro que quieres eliminar este bote del sistema?")
+                # Clave única para el botón usando el ID del bote
+                if st.button("Sí, borrar bote", key=f"del_{item['_id']}"):
+                    coleccion.delete_one({"_id": ObjectId(item["_id"])})
+                    st.rerun()
+                    
+        st.markdown("---") # Línea separadora entre botes
 else:
-    st.info("El almacen esta vacio.")
+    st.info("El almacén está vacío. ¡Dale a añadir pintura!")
