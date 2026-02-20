@@ -1,80 +1,117 @@
 import streamlit as st
 from pymongo import MongoClient
 
-# 1. Conexión a MongoDB (Usando los Secrets que ya configuraste)
+# --- CONFIGURACIÓN DE ESTÉTICA VERDE Y BLANCA ---
+st.markdown("""
+    <style>
+    /* Fondo de la aplicación blanco */
+    .stApp {
+        background-color: #FFFFFF;
+    }
+    /* Títulos y textos principales en verde oscuro */
+    h1, h2, h3, p, span, label, .stMarkdown {
+        color: #007A33 !important; 
+    }
+    /* Estilo de los botones (Fondo verde, texto blanco) */
+    .stButton>button {
+        background-color: #007A33;
+        color: #FFFFFF !important;
+        border: 1px solid #007A33;
+    }
+    /* Color de la barra de progreso en verde */
+    .stProgress > div > div > div > div {
+        background-color: #007A33;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- BASE DE DATOS ---
 try:
     url_via_secrets = st.secrets["MONGODB_URL"]
     client = MongoClient(url_via_secrets)
     db = client['almacen_tifos']
     coleccion = db['pinturas']
 except Exception as e:
-    st.error(f"Error de conexión: {e}")
+    st.error(f"Error de conexion: {e}")
 
-st.title("🎨 Inventario de Tifos Pro")
+# --- DICCIONARIO DE COLORES EUROTEX ---
+# Aquí es donde relacionamos el código de la tienda con el color real.
+# Deberás añadir aquí los códigos exactos que soléis comprar.
+eurotex_colors = {
+    "BLANCO": "#FFFFFF",
+    "NEGRO": "#000000",
+    "VERDE ANDALUCIA": "#007A33",
+    "VERDE OSCURO": "#004d1a",
+    # Añade tus códigos de Eurotex así: "CODIGO_EUROTEX": "#Hexadecimal",
+}
 
-# 2. Formulario para añadir nueva pintura
+def obtener_color_hex(codigo):
+    # Limpiamos el texto y lo ponemos en mayúsculas para evitar errores al teclear
+    codigo_limpio = str(codigo).strip().upper()
+    # Si encuentra el código, devuelve el color. Si no, devuelve un gris por defecto.
+    return eurotex_colors.get(codigo_limpio, "#CCCCCC")
+
+# --- INTERFAZ DE USUARIO ---
+st.title("Inventario de Pinturas")
+
 with st.form("nuevo_bote"):
     st.subheader("Añadir nuevo bote")
     
-    # Dividimos en dos columnas para que quede más bonito
     col1, col2 = st.columns(2)
     with col1:
-        nombre = st.text_input("Nombre (Ej: Rojo Fuego)")
-        codigo = st.text_input("Código/Referencia (Ej: Montana RV-3020)")
+        nombre = st.text_input("Nombre de la pintura")
+        codigo = st.text_input("Codigo Eurotex")
     with col2:
-        # ¡Magia! Un selector visual que nos da el código Hexadecimal para pintar la pantalla
-        color_hex = st.color_picker("Selecciona el color exacto", "#FF0000")
-        mezclada = st.checkbox("¿Mezclada con agua? 💧")
+        mezclada = st.checkbox("Mezclada con agua")
+        # El selector de color manual ha desaparecido
         
-    # Un deslizador para poner el porcentaje a ojo
     porcentaje = st.slider("Cantidad restante (%)", min_value=0, max_value=100, value=100, step=5)
     
     enviar = st.form_submit_button("Guardar Pintura")
 
-    if enviar and nombre:
-        # Preparamos el "paquete" de datos para MongoDB
+    if enviar and nombre and codigo:
+        # Aquí el programa busca automáticamente el color basado en el código
+        color_hex = obtener_color_hex(codigo)
+        
         nuevo_bote = {
             "nombre": nombre,
             "codigo": codigo,
-            "color_hex": color_hex, # Guardamos el color visual
+            "color_hex": color_hex,
             "mezclada": mezclada,
             "porcentaje": porcentaje
         }
         coleccion.insert_one(nuevo_bote)
-        st.success(f"¡{nombre} guardado correctamente!")
+        st.success(f"Pintura guardada correctamente.")
 
-# 3. Visualización del Inventario (Lo que querías que quedara "guapo")
-st.divider()
-st.subheader("📦 Stock Actual")
+st.markdown("---")
+st.subheader("Stock Actual")
 datos = list(coleccion.find())
 
 if datos:
     for item in datos:
-        # Creamos 3 columnas: Color, Info y Estado
         col_color, col_info, col_estado = st.columns([1, 3, 2])
         
         with col_color:
-            # Dibujamos un círculo con el color exacto usando un poco de HTML
+            color = item.get('color_hex', '#CCCCCC')
+            # Círculo de color dinámico
             st.markdown(
-                f"<div style='width: 50px; height: 50px; background-color: {item.get('color_hex', '#FFFFFF')}; border-radius: 50%; border: 2px solid #ccc;'></div>", 
+                f"<div style='width: 50px; height: 50px; background-color: {color}; border-radius: 50%; border: 2px solid #007A33; margin-top: 10px;'></div>", 
                 unsafe_allow_html=True
             )
             
         with col_info:
             st.markdown(f"**{item.get('nombre', 'Sin nombre')}**")
-            st.caption(f"Código: {item.get('codigo', 'N/A')}")
+            st.caption(f"Codigo Eurotex: {item.get('codigo', 'N/A')}")
             if item.get('mezclada'):
-                st.caption("💧 Mezclada con agua")
+                st.caption("Mezclada con agua")
             else:
-                st.caption("🔥 Pura")
+                st.caption("Pura")
                 
         with col_estado:
             porcentaje_actual = item.get('porcentaje', 0)
             st.write(f"Queda: **{porcentaje_actual}%**")
-            # Barra de progreso visual según el porcentaje
             st.progress(porcentaje_actual / 100.0)
             
-        st.divider() # Línea separadora entre botes
+        st.markdown("---")
 else:
-    st.info("El almacén está vacío. ¡Añade el primer bote!")
-
+    st.info("El almacen esta vacio.")
