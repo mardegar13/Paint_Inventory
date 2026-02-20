@@ -3,10 +3,11 @@ from pymongo import MongoClient
 
 # 1. Configuración de la conexión
 # RECUERDA: Cambia <password> por tu contraseña real y pon tu dirección
-URL_CONEXION = "mongodb+srv://admin:botanicos@cluster0.1xe2err.mongodb.net/?appName=Cluster0"
+
+url_via_secrets = st.secrets["MONGODB_URL"]
 
 try:
-    client = MongoClient(URL_CONEXION)
+    client = MongoClient(url_via_secrets)
     db = client['almacen_tifos']  # Crea una base de datos llamada 'almacen_tifos'
     coleccion = db['pinturas']    # Crea una tabla llamada 'pinturas'
 except Exception as e:
@@ -34,4 +35,5 @@ if datos:
     for item in datos:
         st.write(f"🖌️ **{item['color']}**: {item['litros']} Litros")
 else:
+
     st.info("El almacén está vacío. ¡Añade el primer bote!")
