@@ -41,7 +41,7 @@ def obtener_color_hex(codigo):
     return eurotex_colors.get(codigo_limpio, "#CCCCCC")
 
 # --- CABECERA ---
-st.title("🎨 Almacén de Tifos")
+st.title("🎨 Almacén de Pintura")
 
 # --- FORMULARIO PARA AÑADIR ---
 with st.expander("➕ Añadir nueva pintura al stock", expanded=False):
@@ -174,3 +174,4 @@ else:
         st.info("No se han encontrado botes con esos filtros. 🤷‍♂️")
     else:
         st.info("El almacén está vacío. ¡Dale a añadir pintura!")
+
